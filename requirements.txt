@@ -9,3 +9,5 @@ python-telegram-bot
 feedparser
 pyloudnorm
 soundfile
+edge-tts
+fonttools
