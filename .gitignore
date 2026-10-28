@@ -49,3 +49,4 @@ cookies*.txt
 *credentials*
 *secret*
 !.env.example
+brand/logo/
