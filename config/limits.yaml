@@ -1,0 +1,13 @@
+# Xarajat limitlari. Kod shu fayldan o'qiydi. Limitning 80% ga yetganda Telegram'da ogohlantirish chiqadi.
+ai_video:
+  seconds_per_day: 24
+  seconds_per_month: 100      # $10 kredit: Veo Fast ~100 s, Lite ~200 s
+  max_retries_per_clip: 2
+elevenlabs:
+  characters_per_month: 90000 # Creator 100k dan zaxira bilan
+x_api:
+  reads_per_month: 0          # 0 = o'chirilgan
+comments:
+  replies_per_day: 40
+  min_interval_minutes: 5
+warn_at_percent: 80

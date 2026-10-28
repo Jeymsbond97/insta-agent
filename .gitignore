@@ -1,0 +1,51 @@
+# Maxfiy kalitlar
+.env
+.env.local
+.env.production
+*.key
+client_secret*.json
+token*.json
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Katta va vaqtinchalik fayllar
+output/
+assets/
+approved/
+state/
+*.mp4
+*.mov
+*.mp3
+*.wav
+
+# Node (Remotion / HyperFrames)
+node_modules/
+
+# macOS
+.DS_Store
+secrets/
+
+# Shaxsiy hujjatlar va rejalar (hozircha ommaga chiqmaydi)
+CLAUDE.md
+HANDOFF.md
+README*
+*.md
+!brand/fonts/LICENSE.txt
+content/
+memory/
+topics/
+brand/style.md
+config/sources.yaml
+.claude/
+
+# Qo'shimcha maxfiy fayllar
+*.pem
+*.p12
+*.crt
+cookies*.txt
+*credentials*
+*secret*
+!.env.example

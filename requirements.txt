@@ -1,0 +1,11 @@
+python-dotenv
+pyyaml
+requests
+pillow
+numpy
+google-genai
+elevenlabs
+python-telegram-bot
+feedparser
+pyloudnorm
+soundfile

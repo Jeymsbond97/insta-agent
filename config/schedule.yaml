@@ -1,0 +1,6 @@
+timezone: Asia/Seoul   # egasi Koreyada; auditoriya O'zbekistonda (UTC+5, Seuldan 4 soat orqada)
+radar_time: "07:00"
+choice_timeout_minutes: 90
+publish_slots_uz_time: ["18:00", "19:00", "20:00"]  # O'zbekiston vaqti bo'yicha, almashtirib sinaladi
+stats_after_hours: 48
+weekly_report_day: sunday
