@@ -15,12 +15,13 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from telegram import InlineKeyboardButton as Btn, InlineKeyboardMarkup as Kb, Update
+from telegram import (BotCommand, BotCommandScopeAllGroupChats, BotCommandScopeAllPrivateChats,
+                      InlineKeyboardButton as Btn, InlineKeyboardMarkup as Kb, Update)
 from telegram.constants import ParseMode
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler, ContextTypes,
                           MessageHandler, filters)
 
-from .comments import CommentAgent, VideoContext
+from .comments import CommentAgent, VideoContext, learning_stats, refresh_style
 from .config import APPROVED, OUTPUT, ROOT, STATE, env, load_yaml, owner_chat_id
 from .llm import LLMError, ask_json
 from .platforms import get_platform
@@ -49,13 +50,28 @@ def remember(msg, kind: str, ref: str):
     msgmap.update(lambda m: m.__setitem__(str(msg.message_id), {"type": kind, "ref": ref}))
 
 
+topics = JsonStore(STATE / "topics.json", {"group_id": None, "threads": {}})
+SECTIONS = {"videolar": ("📹 Videolar", 0x6FB9F0), "mavzular": ("📰 Mavzular", 0xFFD67E), "izohlar": ("💬 Izohlar", 0x8EEE98)}
+
+
+def dest(section: str) -> dict:
+    """Xabar qayerga ketadi: guruh sozlangan bo'lsa tegishli bo'limga, aks holda egasining shaxsiy chatiga."""
+    t = topics.load()
+    if t["group_id"] and section in t["threads"]:
+        return {"chat_id": t["group_id"], "message_thread_id": t["threads"][section]}
+    return {"chat_id": OWNER}
+
+
 def owner_only(fn):
+    """Faqat egasi yozgan xabar, faqat uning shaxsiy chatida yoki sozlangan guruhda."""
     async def wrap(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        chat = update.effective_chat
-        if OWNER is None or chat is None or chat.id != OWNER:
-            log.warning("Begona chatdan murojaat rad etildi: %s", chat.id if chat else None)
+        chat, user = update.effective_chat, update.effective_user
+        ok_chat = chat is not None and (chat.type == "private" or chat.id == topics.load()["group_id"] or fn is cmd_sozla)
+        if OWNER is None or user is None or user.id != OWNER or not ok_chat:
+            log.warning("Begona murojaat rad etildi: chat=%s user=%s", chat.id if chat else None, user.id if user else None)
             return
         return await fn(update, ctx)
+    wrap.__wrapped__ = fn
     return wrap
 
 
@@ -72,8 +88,71 @@ async def cmd_start(update: Update, ctx):
     ]
     if nxt:
         lines.append(f"Keyingi reja: {nxt['kun']}-kun, {esc(nxt['rubrika'])}: {esc(nxt['mavzu'])}")
-    lines += ["", "/reja · /yangilik &lt;link&gt; · /korib_chiq · /izoh_sinov &lt;matn&gt; · /limit · /pauza · /davom"]
+    lines += ["", "/sozla (guruhda) · /reja · /yangilik &lt;link&gt; · /korib_chiq · /izoh_sinov &lt;matn&gt; · /limit · /pauza · /davom"]
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
+
+
+async def cmd_sozla(update: Update, ctx):
+    """Guruhda bo'limlarni (Topics) yaratadi. Guruhda Topics yoqilgan, bot admin bo'lishi kerak."""
+    chat = update.effective_chat
+    if chat.type == "private" or not chat.is_forum:
+        await update.message.reply_text("Bu buyruq Topics yoqilgan guruhda ishlaydi: guruh sozlamalari → Topics → yoqing, botni admin qiling.")
+        return
+    t = topics.load()
+    threads = t["threads"] if t["group_id"] == chat.id else {}
+    for key, (name, color) in SECTIONS.items():
+        if key not in threads:
+            ft = await ctx.bot.create_forum_topic(chat.id, name, icon_color=color)
+            threads[key] = ft.message_thread_id
+    topics.save({"group_id": chat.id, "threads": threads})
+    for key, tid in threads.items():
+        msg = await ctx.bot.send_message(chat.id, help_text(key), message_thread_id=tid, parse_mode=ParseMode.HTML)
+        try:
+            await ctx.bot.pin_chat_message(chat.id, msg.message_id, disable_notification=True)
+        except Exception as e:
+            log.warning("Pin qilinmadi (botga 'Pin messages' ruxsati kerak): %s", e)
+    await update.message.reply_text("✅ Bo'limlar tayyor, har birida buyruqlar ro'yxati pin qilindi.")
+
+
+# ---------------- yordam: har bo'lim uchun buyruqlar ----------------
+COMMANDS = {
+    "start": "Holat va keyingi reja",
+    "yordam": "Shu bo'limdagi buyruqlar",
+    "reja": "Yaqin 7 kunlik reja",
+    "yangilik": "Link bo'yicha mavzu tekshirish: /yangilik https://...",
+    "korib_chiq": "Eng yangi videoni tasdiqqa yuborish",
+    "izoh_sinov": "Izohni sinash: /izoh_sinov matn",
+    "rejim": "Izoh agenti rejimi va o'rganish holati",
+    "limit": "Xarajat va limitlar",
+    "pauza": "Avtomatik ishni to'xtatish",
+    "davom": "Avtomatik ishni davom ettirish",
+    "sozla": "Guruhda bo'limlarni yaratish yoki yangilash",
+}
+SECTION_CMDS = {
+    "videolar": (["korib_chiq"], "Tayyor videolar shu yerga keladi: ✅ / ✏️ / ❌. Tuzatish uchun video xabariga <b>reply</b> qiling."),
+    "mavzular": (["yangilik", "reja"], "Kunlik mavzular va /yangilik natijalari shu yerda."),
+    "izohlar": (["izoh_sinov", "rejim"], "Izohlar shu yerga keladi. O'z javobingizni yozish uchun izoh xabariga <b>reply</b> qiling."),
+    "general": (["start", "reja", "limit", "pauza", "davom", "sozla"], "Umumiy boshqaruv."),
+}
+
+
+def help_text(section: str) -> str:
+    cmds, intro = SECTION_CMDS.get(section, SECTION_CMDS["general"])
+    lines = "\n".join(f"/{c}: {esc(COMMANDS[c])}" for c in cmds + ["yordam"])
+    return f"📌 <b>Bu bo'limda</b>\n{intro}\n\n{lines}"
+
+
+def section_of(update: Update) -> str:
+    tid = update.effective_message.message_thread_id if update.effective_message else None
+    for key, v in topics.load()["threads"].items():
+        if v == tid:
+            return key
+    return "general"
+
+
+@owner_only
+async def cmd_yordam(update: Update, ctx):
+    await update.message.reply_text(help_text(section_of(update)), parse_mode=ParseMode.HTML)
 
 
 async def cmd_start_setup(update: Update, ctx):
@@ -153,11 +232,10 @@ async def cmd_yangilik(update: Update, ctx):
     backlog.update(lambda b: b.append(item))
     hooks = "\n".join(f"{i}. {esc(h)}" for i, h in enumerate(d["hooks"], 1))
     src = f'<a href="{esc(d["official_source"])}">rasmiy manba</a>' if d["official_source"] else "⚠️ rasmiy manba topilmadi"
-    await update.message.reply_text(
+    await ctx.bot.send_message(**dest("mavzular"), parse_mode=ParseMode.HTML, disable_web_page_preview=True, text=
         f"📰 <b>{esc(d['title_uz'])}</b>\n{esc(d['summary_uz'])}\n\n"
         f"Rubrika: <b>{d['rubric']}</b> · {src} · video: {'bor' if d['has_video'] else 'yoʻq'}\n\n"
-        f"<b>Hook takliflari</b>\n{hooks}\n\n<i>{esc(d['notes'])}</i>\n\n✅ Navbatga qo'shildi.",
-        parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+        f"<b>Hook takliflari</b>\n{hooks}\n\n<i>{esc(d['notes'])}</i>\n\n✅ Navbatga qo'shildi.")
 
 
 # ---------------- video tasdiqlash ----------------
@@ -180,13 +258,13 @@ async def cmd_korib_chiq(update: Update, ctx):
         await update.message.reply_text("Tayyor video yo'q.")
         return
     d = dirs[0]
-    await update.message.reply_text("⏳ Video tayyorlanyapti...")
+    await update.message.reply_text("⏳ Video tayyorlanyapti, 📹 Videolar bo'limiga keladi...")
     f = await asyncio.to_thread(preview_file, d)
     cap = (d / "caption.txt").read_text(encoding="utf-8")[:900] if (d / "caption.txt").exists() else ""
     kb = Kb([[Btn("✅ Joylash", callback_data=f"v:ok:{d.name}"), Btn("✏️ Tuzatish", callback_data=f"v:edit:{d.name}"),
               Btn("❌ Bekor", callback_data=f"v:no:{d.name}")]])
     with f.open("rb") as fh:
-        msg = await ctx.bot.send_video(OWNER, fh, caption=cap, reply_markup=kb, supports_streaming=True,
+        msg = await ctx.bot.send_video(**dest("videolar"), video=fh, caption=cap, reply_markup=kb, supports_streaming=True,
                                        read_timeout=300, write_timeout=300)
     remember(msg, "video", d.name)
     reviews.update(lambda r: r.__setitem__(d.name, {"status": "review", "ts": time.time()}))
@@ -222,11 +300,13 @@ KIND_UZ = {"praise": "maqtov", "question_answerable": "savol (javobi bor)", "que
 async def send_to_owner(bot, rec: dict):
     kb = Kb([[Btn("✅ Taklifni yuborish", callback_data=f"c:send:{rec['id']}")],
              [Btn("🙈 Yashirish", callback_data=f"c:hide:{rec['id']}"), Btn("⏭ O'tkazish", callback_data=f"c:skip:{rec['id']}")]])
-    text = (f"💬 <b>Izoh</b> · {esc(KIND_UZ.get(rec['kind'], rec['kind']))}{' · 🧪 sinov' if rec.get('test') else ''}\n"
+    mode = "🎓 o'rganish" if agent.mode == "learning" else ""
+    tags = " · ".join(t for t in (esc(KIND_UZ.get(rec['kind'], rec['kind'])), mode, "🧪 sinov" if rec.get("test") else "") if t)
+    text = (f"💬 <b>Izoh</b> · {tags}\n"
             f"@{esc(rec.get('author'))}: {esc(rec['text'])}\n\n"
             f"<b>Agent taklifi:</b>\n{esc(rec['reply']) or '—'}\n\n<i>{esc(rec['reason'])}</i>\n\n"
             "O'z javobingizni yozish uchun shu xabarga <b>reply</b> qiling, u izohga aynan joylanadi.")
-    msg = await bot.send_message(OWNER, text, parse_mode=ParseMode.HTML, reply_markup=kb)
+    msg = await bot.send_message(**dest("izohlar"), text=text, parse_mode=ParseMode.HTML, reply_markup=kb)
     remember(msg, "comment", rec["id"])
 
 
@@ -262,14 +342,48 @@ async def on_comment_button(update: Update, ctx, action: str, cid: str):
         if not rec["reply"]:
             await q.message.reply_text("Taklif bo'sh. Reply qilib o'z javobingizni yozing.")
             return
-        await asyncio.to_thread(agent.owner_answer, cid, rec["reply"])
+        await asyncio.to_thread(agent.owner_answer, cid, rec["reply"], source="approved_draft")
         note = "✅ Taklif joylandi."
     elif action == "hide":
-        await asyncio.to_thread(agent.platform.hide, cid); agent.set_status(cid, "hidden_by_owner"); note = "🙈 Yashirildi."
+        await asyncio.to_thread(agent.platform.hide, cid); agent.set_status(cid, "hidden_by_owner")
+        agent.record_example(rec, final=None, source="hidden"); note = "🙈 Yashirildi."
     else:
-        agent.set_status(cid, "skipped"); note = "⏭ O'tkazildi."
+        agent.set_status(cid, "skipped"); agent.record_example(rec, final=None, source="skipped"); note = "⏭ O'tkazildi."
     await q.edit_message_reply_markup(None)
     await q.message.reply_text(note + (" (sinov rejimi, hech narsa joylanmadi)" if agent.platform.name == "dryrun" else ""))
+    await after_example(ctx)
+
+
+async def after_example(ctx):
+    """Har 10 ta javobdan keyin uslubni yangilaydi; tayyor bo'lsa avto rejimni taklif qiladi."""
+    st = learning_stats()
+    if st["answered"] and st["answered"] % 10 == 0:
+        rules = await asyncio.to_thread(refresh_style)
+        if rules:
+            await ctx.bot.send_message(**dest("izohlar"), text=f"🎓 Javoblaringizdan uslubingizni yangiladim ({st['answered']} ta namuna):\n\n{rules}")
+    if st["ready"] and agent.mode == "learning" and not flags.load().get("ready_notified"):
+        flags.update(lambda f: f.__setitem__("ready_notified", True))
+        await ctx.bot.send_message(**dest("izohlar"), text=(
+            f"🎓 {st['answered']} ta namunadan o'rgandim, oxirgi 20 ta taklifimning {st['approval_rate']:.0%} ini o'zgartirmasdan yubordingiz. "
+            "Avtomatik javobga tayyorman. Yoqish: /rejim avto"))
+
+
+@owner_only
+async def cmd_rejim(update: Update, ctx):
+    arg = (ctx.args or [""])[0].lower()
+    if arg in ("avto", "auto"):
+        agent.set_mode("auto"); await update.message.reply_text("🤖 Avtomatik rejim: oddiy izohlarga agent o'zi javob beradi, qolganlari sizga keladi.")
+        return
+    if arg in ("organish", "o'rganish", "learning"):
+        agent.set_mode("learning"); await update.message.reply_text("🎓 O'rganish rejimi: hamma izohlar sizga keladi.")
+        return
+    st = learning_stats()
+    await update.message.reply_text(
+        f"Rejim: <b>{'🎓 oʻrganish' if agent.mode == 'learning' else '🤖 avtomatik'}</b>\n"
+        f"Namunalar: {st['answered']} ta javob ({st['total']} ta izoh)\n"
+        f"Taklifni o'zgartirmasdan yuborganingiz (oxirgi 20): {st['approval_rate']:.0%}\n"
+        f"Avtoga tayyor: {'ha' if st['ready'] else 'hali yoʻq'} (kamida 30 namuna va 80%)\n\n"
+        "/rejim avto · /rejim organish", parse_mode=ParseMode.HTML)
 
 
 # ---------------- tugmalar va reply'lar ----------------
@@ -291,8 +405,9 @@ async def on_reply(update: Update, ctx):
     if not link:
         return
     if link["type"] == "comment":
-        await asyncio.to_thread(agent.owner_answer, link["ref"], m.text)
-        await m.reply_text("✅ Javobingiz izohga joylandi." + (" (sinov rejimi)" if agent.platform.name == "dryrun" else ""))
+        await asyncio.to_thread(agent.owner_answer, link["ref"], m.text, source="owner_written")
+        await m.reply_text("✅ Javobingiz izohga joylandi va namuna sifatida saqlandi." + (" (sinov rejimi)" if agent.platform.name == "dryrun" else ""))
+        await after_example(ctx)
     elif link["type"] == "video":
         reviews.update(lambda r: r.setdefault(link["ref"], {}).setdefault("edits", []).append({"ts": time.time(), "text": m.text}))
         reviews.update(lambda r: r[link["ref"]].__setitem__("status", "edit_requested"))
@@ -303,11 +418,19 @@ async def on_error(update, ctx: ContextTypes.DEFAULT_TYPE):
     log.exception("Xato: %s", ctx.error)
 
 
+async def set_commands(app):
+    """'/' bosganda chiqadigan menyu (Telegram uni bo'lim bo'yicha ajratishga ruxsat bermaydi)."""
+    order = ["yordam", "izoh_sinov", "rejim", "korib_chiq", "yangilik", "reja", "start", "limit", "pauza", "davom", "sozla"]
+    cmds = [BotCommand(c, COMMANDS[c]) for c in order]
+    await app.bot.set_my_commands(cmds, scope=BotCommandScopeAllPrivateChats())
+    await app.bot.set_my_commands(cmds, scope=BotCommandScopeAllGroupChats())
+
+
 def main():
     token = env("TELEGRAM_BOT_TOKEN")
     if not token:
         raise SystemExit("TELEGRAM_BOT_TOKEN .env da yo'q. @BotFather'dan token oling va .env ga yozing.")
-    app = Application.builder().token(token).build()
+    app = Application.builder().token(token).post_init(set_commands).build()
     app.add_error_handler(on_error)
     if OWNER is None:
         log.warning("TELEGRAM_OWNER_CHAT_ID yo'q: sozlash rejimi (faqat /start chat ID ni aytadi).")
@@ -315,8 +438,9 @@ def main():
     else:
         for name, fn in [("start", cmd_start), ("reja", cmd_reja), ("limit", cmd_limit), ("pauza", cmd_pauza),
                          ("davom", cmd_davom), ("yangilik", cmd_yangilik), ("korib_chiq", cmd_korib_chiq),
-                         ("izoh_sinov", cmd_izoh_sinov)]:
+                         ("izoh_sinov", cmd_izoh_sinov), ("yordam", cmd_yordam), ("rejim", cmd_rejim)]:
             app.add_handler(CommandHandler(name, fn))
+        app.add_handler(CommandHandler("sozla", owner_only(cmd_sozla)))
         app.add_handler(CallbackQueryHandler(on_button))
         app.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, on_reply))
     log.info("Bot ishga tushdi (egasi: %s)", "sozlanmagan" if OWNER is None else "bor")
