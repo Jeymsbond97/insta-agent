@@ -50,3 +50,5 @@ cookies*.txt
 *secret*
 !.env.example
 brand/logo/
+config/persona.yaml
+tests/sample_comments.json
