@@ -1,12 +1,12 @@
-"""Telegram boshqaruv boti. Faqat egasining chat ID'siga javob beradi.
+"""Telegram control bot. Responds only to the owner's chat ID.
 
-Interfeys (tugmalar, buyruqlar, xabarlar) inglizcha. O'zbekcha qoladiganlar: izohlarga javoblar,
-hook takliflari va egasining o'z matnlari.
+The interface (buttons, commands, messages) is in English. These stay in Uzbek: replies to comments,
+hook suggestions and the owner's own texts.
 
-Ishga tushirish: .venv/bin/python -m bot.telegram_bot
+Run: .venv/bin/python -m bot.telegram_bot
 
-Sozlash rejimi: TELEGRAM_OWNER_CHAT_ID bo'sh bo'lsa, bot /start ga faqat chat ID'ni aytadi
-va boshqa hech narsa qilmaydi. ID .env ga yozilgach, botni qayta ishga tushiring.
+Setup mode: if TELEGRAM_OWNER_CHAT_ID is empty, the bot answers /start with the chat ID only
+and does nothing else. After writing the ID to .env, restart the bot.
 """
 import asyncio
 import html
@@ -38,8 +38,8 @@ log = logging.getLogger("bot")
 
 OWNER = owner_chat_id()
 flags = JsonStore(STATE / "flags.json", {"paused": False})
-msgmap = JsonStore(STATE / "msgmap.json", {})            # bot xabari id → {"type": ..., "ref": ...}
-reviews = JsonStore(STATE / "reviews.json", {})          # video slug → holat
+msgmap = JsonStore(STATE / "msgmap.json", {})            # bot message id → {"type": ..., "ref": ...}
+reviews = JsonStore(STATE / "reviews.json", {})          # video slug → state
 backlog = JsonStore(ROOT / "topics/backlog.json", [])
 agent = CommentAgent(get_platform("instagram"))
 TG_LIMIT = 48 * 1024 * 1024
@@ -54,7 +54,7 @@ def remember(msg, kind: str, ref: str):
     msgmap.update(lambda m: m.__setitem__(str(msg.message_id), {"type": kind, "ref": ref}))
 
 
-# ---------------- guruh bo'limlari ----------------
+# ---------------- group sections ----------------
 topics = JsonStore(STATE / "topics.json", {"group_id": None, "threads": {}})
 SECTIONS = {"videos": ("📹 Videos", 0x6FB9F0), "topics": ("📰 Topics", 0xFFD67E), "comments": ("💬 Comments", 0x8EEE98)}
 _OLD_KEYS = {"videolar": "videos", "mavzular": "topics", "izohlar": "comments"}
@@ -71,7 +71,7 @@ _migrate_topics()
 
 
 def dest(section: str) -> dict:
-    """Xabar qayerga ketadi: guruh sozlangan bo'lsa tegishli bo'limga, aks holda egasining shaxsiy chatiga."""
+    """Where a message goes: the matching section if the group is set up, otherwise the owner's private chat."""
     t = topics.load()
     if t["group_id"] and section in t["threads"]:
         return {"chat_id": t["group_id"], "message_thread_id": t["threads"][section]}
@@ -79,12 +79,12 @@ def dest(section: str) -> dict:
 
 
 def WHERE_NOTE(update: Update) -> str:
-    """Shaxsiy chatdan yozilganda natija guruhdagi 💬 Comments bo'limiga ketishini eslatadi."""
+    """When writing from the private chat, notes that results go to the group's 💬 Comments section."""
     return "\nResults go to the 💬 Comments section of the group." if update.effective_chat.type == "private" and dest("comments")["chat_id"] != OWNER else ""
 
 
 def owner_only(fn):
-    """Faqat egasi yozgan xabar, faqat uning shaxsiy chatida yoki sozlangan guruhda."""
+    """Only messages from the owner, only in their private chat or the configured group."""
     async def wrap(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat, user = update.effective_chat, update.effective_user
         ok_chat = chat is not None and (chat.type == "private" or chat.id == topics.load()["group_id"] or fn is cmd_setup)
@@ -96,7 +96,7 @@ def owner_only(fn):
     return wrap
 
 
-# ---------------- yordam: har bo'lim uchun buyruqlar ----------------
+# ---------------- help: commands per section ----------------
 COMMANDS = {
     "help": "Commands for this section",
     "test_comment": "Test the comment agent: /test_comment <text>",
@@ -139,7 +139,7 @@ async def cmd_help(update: Update, ctx):
 
 
 async def cmd_setup(update: Update, ctx):
-    """Guruhda bo'limlarni (Topics) yaratadi yoki nomini yangilaydi, yordam xabarini pin qiladi."""
+    """Creates or renames the group sections (Topics) and pins the help message."""
     chat = update.effective_chat
     if chat.type == "private" or not chat.is_forum:
         await update.message.reply_text("This command works in a group with Topics enabled: group settings → Topics → on, and make the bot an admin.")
@@ -170,13 +170,13 @@ async def cmd_setup(update: Update, ctx):
 
 
 async def cmd_start_setup(update: Update, ctx):
-    """Sozlash rejimi: faqat chat ID ni aytadi."""
+    """Setup mode: only reports the chat ID."""
     await update.message.reply_text(
         f"Your chat ID: {update.effective_chat.id}\n\n"
         "Put it into .env as TELEGRAM_OWNER_CHAT_ID= and restart the bot.")
 
 
-# ---------------- umumiy buyruqlar ----------------
+# ---------------- general commands ----------------
 @owner_only
 async def cmd_start(update: Update, ctx):
     paused = flags.load()["paused"]
@@ -271,7 +271,7 @@ async def cmd_news(update: Update, ctx):
         f"<b>Hook ideas</b>\n{hooks}\n\n<i>{esc(d['notes'])}</i>\n\n✅ Added to the backlog.")
 
 
-# ---------------- video tasdiqlash ----------------
+# ---------------- video approval ----------------
 def preview_file(video_dir: Path) -> Path:
     final = video_dir / "final.mp4"
     if final.stat().st_size <= TG_LIMIT:
@@ -285,7 +285,7 @@ def preview_file(video_dir: Path) -> Path:
 
 @owner_only
 async def cmd_review(update: Update, ctx):
-    """Eng yangi tayyor videoni tasdiqqa yuboradi."""
+    """Sends the latest finished video for approval."""
     dirs = sorted([d for d in OUTPUT.iterdir() if (d / "final.mp4").exists()], reverse=True)
     if not dirs:
         await update.message.reply_text("No finished video yet.")
@@ -324,7 +324,7 @@ async def on_video_button(update: Update, ctx, action: str, slug: str):
         await q.message.reply_text("❌ Rejected.")
 
 
-# ---------------- izohlar ----------------
+# ---------------- comments ----------------
 KIND_EN = {"praise": "praise", "question_answerable": "question (answer known)", "question_unknown": "question (answer unknown)",
            "negative": "criticism", "abusive": "abuse", "fact_error": "\"fact is wrong\"", "sensitive": "sensitive topic",
            "spam": "spam", "provocation": "provocation", "other": "other"}
@@ -346,8 +346,8 @@ async def send_to_owner(bot, rec: dict):
 
 @owner_only
 async def cmd_test_comment(update: Update, ctx):
-    """Sinov: matnni oxirgi videoga kelgan izoh deb tekshiradi (hech narsa joylanmaydi).
-    Bir nechta qator yuborilsa, har qator alohida izoh bo'ladi."""
+    """Test: treats the text as a comment on the latest video (nothing is posted).
+    If several lines are sent, each line is a separate comment."""
     body = re.sub(r"^/\S+\s*", "", update.message.text)
     lines = [l.strip() for l in body.splitlines() if l.strip()]
     if not lines:
@@ -397,7 +397,7 @@ async def on_comment_button(update: Update, ctx, action: str, cid: str):
 
 
 async def after_example(ctx):
-    """Har 10 ta javobdan keyin uslubni yangilaydi; tayyor bo'lsa avto rejimni taklif qiladi."""
+    """Refreshes the style every 10 replies; offers auto mode once ready."""
     st = learning_stats()
     if st["answered"] and st["answered"] % 10 == 0:
         rules = await asyncio.to_thread(refresh_style)
@@ -428,7 +428,7 @@ async def cmd_mode(update: Update, ctx):
         "/mode auto · /mode learning", parse_mode=ParseMode.HTML)
 
 
-# ---------------- tugmalar va reply'lar ----------------
+# ---------------- buttons and replies ----------------
 @owner_only
 async def on_button(update: Update, ctx):
     q = update.callback_query
@@ -445,7 +445,7 @@ async def on_reply(update: Update, ctx):
     m = update.message
     link = msgmap.load().get(str(m.reply_to_message.message_id)) if m.reply_to_message else None
     if not link:
-        # 💬 Comments bo'limidagi oddiy xabar = sinov izohi (har qator alohida)
+        # A plain message in the 💬 Comments section = test comment (each line separately)
         if section_of(update) == "comments" or update.effective_chat.type == "private":
             lines = [l.strip() for l in m.text.splitlines() if l.strip()]
             await m.reply_text(f"⏳ Thinking about {len(lines)} comment(s), about a minute each..." + WHERE_NOTE(update))
@@ -467,7 +467,7 @@ async def on_error(update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def set_commands(app):
-    """'/' bosganda chiqadigan menyu (Telegram uni bo'lim bo'yicha ajratishga ruxsat bermaydi)."""
+    """The menu shown when pressing '/' (Telegram does not allow separating it per section)."""
     order = ["help", "test_comment", "mode", "review", "news", "plan", "start", "limits", "pause", "resume", "setup"]
     cmds = [BotCommand(c, COMMANDS[c]) for c in order]
     await app.bot.set_my_commands(cmds, scope=BotCommandScopeAllPrivateChats())

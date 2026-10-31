@@ -1,4 +1,4 @@
-"""Oddiy JSON holat ombori: atomik yozish va jarayon ichidagi qulf."""
+"""Simple JSON state store: atomic writes and an in-process lock."""
 import json
 import threading
 from pathlib import Path
@@ -22,7 +22,7 @@ class JsonStore:
         tmp.replace(self.path)
 
     def update(self, fn: Callable[[Any], Any]) -> Any:
-        """fn holatni joyida o'zgartiradi (yoki yangisini qaytaradi); natija saqlanadi."""
+        """fn changes the state in place (or returns a new one); the result is saved."""
         with self._lock:
             data = self.load()
             out = fn(data)

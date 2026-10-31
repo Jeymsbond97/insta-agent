@@ -1,4 +1,4 @@
-"""Umumiy sozlamalar: yo'llar, .env, yaml konfiglar."""
+"""Shared settings: paths, .env, yaml configs."""
 import os
 from pathlib import Path
 

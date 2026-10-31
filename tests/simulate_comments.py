@@ -1,5 +1,5 @@
-"""Izoh agentini sinov izohlari bilan tekshiradi (DryRun — hech narsa joylanmaydi).
-Ishga tushirish: .venv/bin/python -m tests.simulate_comments [video_papka]
+"""Checks the comment agent with sample comments (DryRun — nothing is posted).
+Run: .venv/bin/python -m tests.simulate_comments [video_dir]
 """
 import json
 import sys
