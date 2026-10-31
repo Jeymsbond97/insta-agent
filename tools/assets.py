@@ -4,6 +4,7 @@ Kaliti yo'q yoki javob bermagan provayder o'tkazib yuboriladi.
 Kalitlar ekranga va logga chiqarilmaydi.
 """
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -114,6 +115,25 @@ def freesound(query: str, kind: str, limit: int) -> list[Asset]:
     return [Asset("freesound", "audio", str(h["id"]), h["previews"]["preview-hq-mp3"], h["url"], h["username"],
                   h["license"], title=h["name"], tags=h.get("tags") or [], duration=h.get("duration", 0))
             for h in data.get("results", [])]
+
+
+@provider("wikimedia", "video", "image")
+def wikimedia(query: str, kind: str, limit: int) -> list[Asset]:
+    q = f"{query} filetype:{'video' if kind == 'video' else 'bitmap'}"
+    data = _get("https://commons.wikimedia.org/w/api.php",
+                params={"action": "query", "format": "json", "generator": "search", "gsrnamespace": 6,
+                        "gsrsearch": q, "gsrlimit": limit, "prop": "imageinfo",
+                        "iiprop": "url|size|extmetadata"})  # video davomiyligi ham size ichida keladi
+    out = []
+    for p in (data.get("query") or {}).get("pages", {}).values():
+        info = p["imageinfo"][0]
+        meta = info.get("extmetadata") or {}
+        author = re.sub(r"<[^>]+>", "", (meta.get("Artist") or {}).get("value", "")).strip()
+        out.append(Asset("wikimedia", kind, str(p["pageid"]), info["url"], info["descriptionurl"], author,
+                         (meta.get("LicenseShortName") or {}).get("value", ""), title=p["title"],
+                         width=info.get("width", 0), height=info.get("height", 0),
+                         duration=float(info.get("duration") or 0)))
+    return out
 
 
 # --- qidiruv ---
