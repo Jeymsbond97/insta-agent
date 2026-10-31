@@ -1,7 +1,7 @@
-"""Instagram tokenini tekshiradi: qaysi serverda ishlaydi, qaysi akkaunt, qachongacha.
+"""Check the Instagram token: which host it works on, which account, and until when.
 
-Ishlatish:  python tools/ig_check.py
-Token ekranga chiqarilmaydi.
+Usage:  python tools/ig_check.py
+The token is never printed.
 """
 import os
 import sys
@@ -21,7 +21,7 @@ app_id = os.environ.get("META_APP_ID", "").strip()
 app_secret = os.environ.get("META_APP_SECRET", "").strip()
 
 if not token or not ig_id:
-    sys.exit("Avval .env ga IG_USER_ID va IG_ACCESS_TOKEN ni yozing.")
+    sys.exit("Set IG_USER_ID and IG_ACCESS_TOKEN in .env first.")
 
 
 def try_host(host: str) -> dict | None:
@@ -30,29 +30,29 @@ def try_host(host: str) -> dict | None:
                      timeout=30)
     data = r.json()
     if "error" in data:
-        print(f"  {host}: ishlamadi ({data['error'].get('message')})")
+        print(f"  {host}: failed ({data['error'].get('message')})")
         return None
-    print(f"  {host}: ISHLAYDI → @{data.get('username')}, "
-          f"{data.get('followers_count', '?')} obunachi, {data.get('media_count', '?')} post")
+    print(f"  {host}: WORKS → @{data.get('username')}, "
+          f"{data.get('followers_count', '?')} followers, {data.get('media_count', '?')} posts")
     return data
 
 
-print("1) Akkaunt:")
+print("1) Account:")
 ok = [h for h in ("graph.facebook.com", "graph.instagram.com") if try_host(h)]
 
-print("2) Token muddati:")
+print("2) Token expiry:")
 if app_id and app_secret:
     r = requests.get(f"https://graph.facebook.com/{VERSION}/debug_token",
                      params={"input_token": token, "access_token": f"{app_id}|{app_secret}"}, timeout=30)
     d = r.json().get("data", {})
     if d:
         exp = d.get("expires_at", 0)
-        when = "hech qachon" if not exp else datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%d")
-        print(f"  turi: {d.get('type')}, amal qiladi: {d.get('is_valid')}, tugaydi: {when}")
-        print(f"  ruxsatlar: {', '.join(sorted(d.get('scopes', [])))}")
+        when = "never" if not exp else datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%d")
+        print(f"  type: {d.get('type')}, valid: {d.get('is_valid')}, expires: {when}")
+        print(f"  scopes: {', '.join(sorted(d.get('scopes', [])))}")
     else:
-        print(f"  aniqlab bo'lmadi: {r.json().get('error', {}).get('message')}")
+        print(f"  could not determine: {r.json().get('error', {}).get('message')}")
 else:
-    print("  META_APP_ID / META_APP_SECRET yo'q, o'tkazib yuborildi.")
+    print("  META_APP_ID / META_APP_SECRET missing, skipped.")
 
-print("\nNatija:", "OK, " + ", ".join(ok) if ok else "token hech qaysi serverda ishlamadi")
+print("\nResult:", "OK, " + ", ".join(ok) if ok else "token did not work on any host")

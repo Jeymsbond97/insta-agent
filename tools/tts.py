@@ -1,8 +1,8 @@
-"""ElevenLabs orqali matndan ovoz va so'z vaqtlarini oladi.
+"""Get speech audio and word timings for a text from ElevenLabs.
 
-Ishlatish:  python tools/tts.py script.txt --out output/<papka>/voice
-Natija:     voice.mp3 va voice.words.json ([{"w": so'z, "s": boshlanish, "e": tugash}, ...])
-Oylik belgi limiti config/limits.yaml da. Kalit ekranga chiqarilmaydi.
+Usage:   python tools/tts.py script.txt --out output/<folder>/voice
+Output:  voice.mp3 and voice.words.json ([{"w": word, "s": start, "e": end}, ...])
+The monthly character limit is in config/limits.yaml. The key is never printed.
 """
 import argparse
 import base64
@@ -44,10 +44,10 @@ def add_usage(chars: int):
 
 
 def words_from_alignment(al: dict) -> list[dict]:
-    """Harfma-harf vaqtlarni so'zlarga yig'adi."""
+    """Group per-character timings into words."""
     words, cur, start, end, in_tag = [], "", 0.0, 0.0, False
     for ch, s, e in zip(al["characters"], al["character_start_times_seconds"], al["character_end_times_seconds"]):
-        # [curious] kabi ohang teglari aytilmaydi, subtitrga ham kirmaydi
+        # Tone tags such as [curious] are not spoken and stay out of the subtitles
         if ch == "[":
             in_tag = True
         if in_tag:
@@ -71,10 +71,10 @@ def synthesize(text: str, model: str, stability: float | None = None) -> dict:
     key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
     voice = os.environ.get("ELEVENLABS_VOICE_ID", "").strip()
     if not key or not voice:
-        sys.exit("Avval .env ga ELEVENLABS_API_KEY va ELEVENLABS_VOICE_ID ni yozing.")
+        sys.exit("Set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID in .env first.")
     limit = monthly_limit()
     if used_this_month() + len(text) > limit:
-        sys.exit(f"Oylik limit: {used_this_month()} + {len(text)} > {limit} belgi. config/limits.yaml ga qarang.")
+        sys.exit(f"Monthly limit: {used_this_month()} + {len(text)} > {limit} characters. See config/limits.yaml.")
     body = {"text": text, "model_id": model}
     if stability is not None:
         body["voice_settings"] = {"stability": stability}
@@ -85,22 +85,22 @@ def synthesize(text: str, model: str, stability: float | None = None) -> dict:
             if r.status_code < 500:
                 break
         except requests.RequestException as e:
-            print(f"Qayta urinilmoqda ({type(e).__name__})", file=sys.stderr)
+            print(f"Retrying ({type(e).__name__})", file=sys.stderr)
         if attempt == 2:
-            sys.exit("ElevenLabs javob bermadi.")
+            sys.exit("ElevenLabs did not respond.")
         time.sleep(3 * (attempt + 1))
     if not r.ok:
-        sys.exit(f"ElevenLabs xatosi {r.status_code}: {r.text[:300]}")
+        sys.exit(f"ElevenLabs error {r.status_code}: {r.text[:300]}")
     add_usage(len(text))
     return r.json()
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("script", type=Path, help="Matn fayli")
-    ap.add_argument("--out", type=Path, required=True, help="Kengaytmasiz nom, masalan output/x/voice")
+    ap.add_argument("script", type=Path, help="Text file")
+    ap.add_argument("--out", type=Path, required=True, help="Name without extension, e.g. output/x/voice")
     ap.add_argument("--model", default="eleven_v4")
-    ap.add_argument("--stability", type=float, help="Pastroq qiymat ohangni jonliroq qiladi")
+    ap.add_argument("--stability", type=float, help="A lower value makes the tone livelier")
     args = ap.parse_args()
 
     text = args.script.read_text(encoding="utf-8").strip()
@@ -109,8 +109,8 @@ def main():
     args.out.with_suffix(".mp3").write_bytes(base64.b64decode(data["audio_base64"]))
     words = words_from_alignment(data.get("normalized_alignment") or data["alignment"])
     args.out.with_suffix(".words.json").write_text(json.dumps(words, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"{args.out.with_suffix('.mp3')}: {len(text)} belgi, {len(words)} so'z, {words[-1]['e']:.1f} s")
-    print(f"Bu oy ishlatilgan: {used_this_month()} / {monthly_limit()} belgi")
+    print(f"{args.out.with_suffix('.mp3')}: {len(text)} characters, {len(words)} words, {words[-1]['e']:.1f} s")
+    print(f"Used this month: {used_this_month()} / {monthly_limit()} characters")
 
 
 if __name__ == "__main__":
