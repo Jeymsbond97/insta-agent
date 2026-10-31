@@ -91,6 +91,18 @@ def coverr(query: str, kind: str, limit: int) -> list[Asset]:
     return out
 
 
+@provider("unsplash", "image")
+def unsplash(query: str, kind: str, limit: int) -> list[Asset]:
+    key = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
+    if not key:
+        return []
+    data = _get("https://api.unsplash.com/search/photos", params={"query": query, "per_page": limit},
+                headers={"Authorization": f"Client-ID {key}"})
+    return [Asset("unsplash", "image", h["id"], h["urls"]["regular"], h["links"]["html"], h["user"]["name"],
+                  "Unsplash License", title=h.get("alt_description") or "", width=h["width"], height=h["height"])
+            for h in data.get("results", [])]
+
+
 # --- qidiruv ---
 def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
     found = []
