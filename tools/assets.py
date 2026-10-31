@@ -136,6 +136,25 @@ def wikimedia(query: str, kind: str, limit: int) -> list[Asset]:
     return out
 
 
+@provider("nasa", "video", "image")
+def nasa(query: str, kind: str, limit: int) -> list[Asset]:
+    data = _get("https://images-api.nasa.gov/search", params={"q": query, "media_type": kind})
+    out = []
+    for item in data["collection"]["items"][:limit]:
+        d = item["data"][0]
+        # Fayl manzillari alohida ro'yxatda turadi
+        files = _get(item["href"])
+        ext = ".mp4" if kind == "video" else ".jpg"
+        urls = [u for u in files if u.endswith(ext)]
+        if not urls:
+            continue
+        url = next((u for u in urls if "~medium" in u or "~large" in u), urls[0]).replace("http://", "https://")
+        out.append(Asset("nasa", kind, d["nasa_id"], url, f"https://images.nasa.gov/details/{d['nasa_id']}",
+                         d.get("photographer") or d.get("center") or "NASA", "NASA Media Guidelines",
+                         title=d.get("title", ""), tags=d.get("keywords") or []))
+    return out
+
+
 # --- qidiruv ---
 def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
     found = []
