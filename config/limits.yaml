@@ -4,7 +4,7 @@ ai_video:
   seconds_per_month: 100      # $10 kredit: Veo Fast ~100 s, Lite ~200 s
   max_retries_per_clip: 2
 elevenlabs:
-  characters_per_month: 90000 # Creator 100k dan zaxira bilan
+  characters_per_month: 29000 # Starter 30k dan zaxira bilan; ko'proq kerak bo'lsa egasi bilan oshiriladi
 x_api:
   reads_per_month: 0          # 0 = o'chirilgan
 comments:
