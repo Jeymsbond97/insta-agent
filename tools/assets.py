@@ -155,6 +155,36 @@ def nasa(query: str, kind: str, limit: int) -> list[Asset]:
     return out
 
 
+# --- filtr ---
+AI_WORDS = ("ai generated", "ai-generated", "midjourney", "stable diffusion", "dall-e", "dalle", "generative ai")
+MIN_SIDE = {"video": 720, "image": 1080}
+MIN_VIDEO_SECONDS = 3
+
+
+def license_ok(a: Asset) -> bool:
+    lic = a.license.lower()
+    if a.source == "freesound":
+        # Faqat CC0 va CC-BY
+        return "publicdomain/zero" in lic or "creative commons 0" in lic or "/by/" in lic or lic == "attribution"
+    if a.source == "wikimedia":
+        if "-nc" in lic or "-nd" in lic:
+            return False
+        return lic.startswith(("cc0", "cc by", "public domain", "pd"))
+    return bool(lic)
+
+
+def keep(a: Asset) -> bool:
+    text = " ".join([a.title, *a.tags]).lower()
+    if any(w in text for w in AI_WORDS) or not license_ok(a):
+        return False
+    side = MIN_SIDE.get(a.kind, 0)
+    if a.width and a.height and min(a.width, a.height) < side:
+        return False
+    if a.kind == "video" and a.duration and a.duration < MIN_VIDEO_SECONDS:
+        return False
+    return True
+
+
 # --- qidiruv ---
 def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
     found = []
@@ -166,4 +196,4 @@ def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
         except Exception as e:
             # Xato matnida URL (va kalit) bo'lishi mumkin, faqat turini chiqaramiz
             print(f"{name}: o'tkazib yuborildi ({type(e).__name__})", file=sys.stderr)
-    return found
+    return [a for a in found if keep(a)]
