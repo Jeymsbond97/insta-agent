@@ -78,6 +78,11 @@ def dest(section: str) -> dict:
     return {"chat_id": OWNER}
 
 
+def WHERE_NOTE(update: Update) -> str:
+    """Shaxsiy chatdan yozilganda natija guruhdagi 💬 Comments bo'limiga ketishini eslatadi."""
+    return "\nResults go to the 💬 Comments section of the group." if update.effective_chat.type == "private" and dest("comments")["chat_id"] != OWNER else ""
+
+
 def owner_only(fn):
     """Faqat egasi yozgan xabar, faqat uning shaxsiy chatida yoki sozlangan guruhda."""
     async def wrap(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -108,7 +113,8 @@ COMMANDS = {
 SECTION_CMDS = {
     "videos": (["review"], "Finished videos arrive here with ✅ / ✏️ / ❌. To request changes, <b>reply</b> to the video message."),
     "topics": (["news", "plan"], "Daily topic ideas and /news results appear here."),
-    "comments": (["test_comment", "mode"], "Comments arrive here. To answer in your own words, <b>reply</b> to the comment message."),
+    "comments": (["test_comment", "mode"], "Comments arrive here. To answer in your own words, <b>reply</b> to the comment message. "
+                 "To test, just write a comment here (each line is one comment)."),
     "general": (["start", "plan", "limits", "pause", "resume", "setup"], "General controls."),
 }
 
@@ -340,16 +346,24 @@ async def send_to_owner(bot, rec: dict):
 
 @owner_only
 async def cmd_test_comment(update: Update, ctx):
-    """Sinov: matnni oxirgi videoga kelgan izoh deb tekshiradi (hech narsa joylanmaydi)."""
-    text = " ".join(ctx.args or [])
-    if not text:
-        await update.message.reply_text("Usage: /test_comment Bu qancha turadi?")
+    """Sinov: matnni oxirgi videoga kelgan izoh deb tekshiradi (hech narsa joylanmaydi).
+    Bir nechta qator yuborilsa, har qator alohida izoh bo'ladi."""
+    body = re.sub(r"^/\S+\s*", "", update.message.text)
+    lines = [l.strip() for l in body.splitlines() if l.strip()]
+    if not lines:
+        await update.message.reply_text("Usage: /test_comment Bu qancha turadi?\n(several lines = several comments)")
         return
+    await update.message.reply_text(f"⏳ Thinking about {len(lines)} comment(s), about a minute each..." + WHERE_NOTE(update))
+    for text in lines:
+        await _test_one(update, ctx, text)
+
+
+async def _test_one(update: Update, ctx, text: str):
     comment = {"id": f"test-{int(time.time() * 1000)}", "author": "test", "text": text, "platform": "test"}
     try:
         rec = await asyncio.to_thread(agent.process, comment, VideoContext.latest(), test=True)
     except LLMError:
-        await update.message.reply_text("❌ The agent did not respond, please try again.")
+        await update.message.reply_text(f"❌ The agent did not respond for: {text[:60]}")
         return
     if rec["action"] == "owner":
         await send_to_owner(ctx.bot, rec)
@@ -429,8 +443,14 @@ async def on_button(update: Update, ctx):
 @owner_only
 async def on_reply(update: Update, ctx):
     m = update.message
-    link = msgmap.load().get(str(m.reply_to_message.message_id))
+    link = msgmap.load().get(str(m.reply_to_message.message_id)) if m.reply_to_message else None
     if not link:
+        # 💬 Comments bo'limidagi oddiy xabar = sinov izohi (har qator alohida)
+        if section_of(update) == "comments" or update.effective_chat.type == "private":
+            lines = [l.strip() for l in m.text.splitlines() if l.strip()]
+            await m.reply_text(f"⏳ Thinking about {len(lines)} comment(s), about a minute each..." + WHERE_NOTE(update))
+            for text in lines:
+                await _test_one(update, ctx, text)
         return
     if link["type"] == "comment":
         await asyncio.to_thread(agent.owner_answer, link["ref"], m.text, source="owner_written")
@@ -470,7 +490,7 @@ def main():
             app.add_handler(CommandHandler(name, fn))
         app.add_handler(CommandHandler("setup", owner_only(cmd_setup)))
         app.add_handler(CallbackQueryHandler(on_button))
-        app.add_handler(MessageHandler(filters.TEXT & filters.REPLY & ~filters.COMMAND, on_reply))
+        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_reply))
     log.info("Bot started (owner: %s)", "not set" if OWNER is None else "set")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
