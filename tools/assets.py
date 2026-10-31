@@ -3,11 +3,15 @@
 Kaliti yo'q yoki javob bermagan provayder o'tkazib yuboriladi.
 Kalitlar ekranga va logga chiqarilmaydi.
 """
+import argparse
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from dotenv import load_dotenv
@@ -197,3 +201,50 @@ def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
             # Xato matnida URL (va kalit) bo'lishi mumkin, faqat turini chiqaramiz
             print(f"{name}: o'tkazib yuborildi ({type(e).__name__})", file=sys.stderr)
     return [a for a in found if keep(a)]
+
+
+# --- yuklash ---
+def download(a: Asset, out_dir: Path) -> Path:
+    """Faylni <out_dir>/assets/ ga yuklaydi va credits.json ga yozadi. Bor faylni qayta yuklamaydi."""
+    assets_dir = out_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    ext = Path(urlparse(a.url).path).suffix or {"video": ".mp4", "image": ".jpg", "audio": ".mp3"}[a.kind]
+    path = assets_dir / f"{a.source}_{re.sub(r'[^A-Za-z0-9_-]', '_', a.id)}{ext}"
+    if not path.exists():
+        tmp = path.with_suffix(path.suffix + ".part")
+        with requests.get(a.url, headers=HEADERS, stream=True, timeout=TIMEOUT) as r:
+            r.raise_for_status()
+            with tmp.open("wb") as f:
+                for chunk in r.iter_content(1 << 16):
+                    f.write(chunk)
+        tmp.rename(path)
+    add_credit(a, path, out_dir)
+    return path
+
+
+def add_credit(a: Asset, path: Path, out_dir: Path):
+    credits_path = out_dir / "credits.json"
+    credits = json.loads(credits_path.read_text(encoding="utf-8")) if credits_path.exists() else []
+    rel = str(path.relative_to(out_dir))
+    if any(c.get("file") == rel for c in credits):
+        return
+    credits.append({"file": rel, "source": a.source, "url": a.page_url, "author": a.author,
+                    "license": a.license, "fetched_at": date.today().isoformat()})
+    credits_path.write_text(json.dumps(credits, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("query")
+    ap.add_argument("--type", choices=["video", "image", "audio"], default="video")
+    ap.add_argument("--limit", type=int, default=10)
+    ap.add_argument("--out", type=Path, help="Berilsa, topilganlarni shu papkaga yuklaydi")
+    args = ap.parse_args()
+    for a in search(args.query, args.type, args.limit):
+        print(f"{a.source:10} {a.width}x{a.height} {a.duration:5.0f}s  {a.license[:24]:24} {a.page_url}")
+        if args.out:
+            print("  ->", download(a, args.out))
+
+
+if __name__ == "__main__":
+    main()
