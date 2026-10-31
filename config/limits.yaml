@@ -1,12 +1,12 @@
-# Xarajat limitlari. Kod shu fayldan o'qiydi. Limitning 80% ga yetganda Telegram'da ogohlantirish chiqadi.
+# Spending limits. Code reads from this file. At 80% of a limit a warning appears in Telegram.
 ai_video:
   seconds_per_day: 24
-  seconds_per_month: 100      # $10 kredit: Veo Fast ~100 s, Lite ~200 s
+  seconds_per_month: 100      # $10 credit: Veo Fast ~100 s, Lite ~200 s
   max_retries_per_clip: 2
 elevenlabs:
-  characters_per_month: 29000 # Starter 30k dan zaxira bilan; ko'proq kerak bo'lsa egasi bilan oshiriladi
+  characters_per_month: 29000 # Starter 30k with a margin; raised with the owner if more is needed
 x_api:
-  reads_per_month: 0          # 0 = o'chirilgan
+  reads_per_month: 0          # 0 = disabled
 comments:
   replies_per_day: 40
   min_interval_minutes: 5

@@ -1,6 +1,6 @@
-timezone: Asia/Seoul   # egasi Koreyada; auditoriya O'zbekistonda (UTC+5, Seuldan 4 soat orqada)
+timezone: Asia/Seoul   # the owner is in Korea; the audience is in Uzbekistan (UTC+5, 4 hours behind Seoul)
 radar_time: "07:00"
 choice_timeout_minutes: 90
-publish_slots_uz_time: ["18:00", "19:00", "20:00"]  # O'zbekiston vaqti bo'yicha, almashtirib sinaladi
+publish_slots_uz_time: ["18:00", "19:00", "20:00"]  # Uzbekistan time, rotated and tested
 stats_after_hours: 48
 weekly_report_day: sunday
