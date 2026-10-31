@@ -50,6 +50,27 @@ def _get(url: str, **kw) -> dict:
     return r.json()
 
 
+@provider("pixabay", "video", "image")
+def pixabay(query: str, kind: str, limit: int) -> list[Asset]:
+    key = os.environ.get("PIXABAY_API_KEY", "").strip()
+    if not key:
+        return []
+    base = "https://pixabay.com/api/videos/" if kind == "video" else "https://pixabay.com/api/"
+    data = _get(base, params={"key": key, "q": query[:100], "per_page": max(limit, 3), "safesearch": "true"})
+    out = []
+    for h in data.get("hits", []):
+        if kind == "video":
+            v = h["videos"].get("large") or {}
+            if not v.get("url"):
+                v = h["videos"]["medium"]
+            url, w, hh = v["url"], v["width"], v["height"]
+        else:
+            url, w, hh = h["largeImageURL"], h["imageWidth"], h["imageHeight"]
+        out.append(Asset("pixabay", kind, str(h["id"]), url, h["pageURL"], h["user"], "Pixabay Content License",
+                         tags=h.get("tags", "").split(", "), width=w, height=hh, duration=h.get("duration", 0)))
+    return out
+
+
 # --- qidiruv ---
 def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
     found = []
