@@ -1,7 +1,7 @@
-"""Izohlar uchun platforma adapterlari.
+"""Platform adapters for comments.
 
-DryRun — hech narsa joylamaydi, faqat `state/dryrun_actions.jsonl` ga yozadi (kalitlar ulanmaguncha).
-Instagram — Graph API (Business akkaunt). Endpointlar 6-bosqichda haqiqiy token bilan tekshiriladi.
+DryRun — posts nothing, only writes to `state/dryrun_actions.jsonl` (until keys are connected).
+Instagram — Graph API (Business account). Endpoints get verified with a real token in stage 6.
 """
 import logging
 import time
@@ -64,7 +64,7 @@ class Instagram(Platform):
             except requests.RequestException as e:
                 if attempt == 2:
                     raise
-                log.warning("Instagram so'rovi qayta urinilmoqda: %s", e)
+                log.warning("Retrying Instagram request: %s", e)
                 time.sleep(3 * (attempt + 1))
 
     def list_comments(self, media_id):

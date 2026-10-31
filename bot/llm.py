@@ -1,8 +1,8 @@
-"""Agent "miyasi": Claude Code CLI'ni headless rejimda chaqiradi (Pro obuna doirasida).
+"""The agent's "brain": calls the Claude Code CLI in headless mode (within the Pro subscription).
 
-Har chaqiruv bo'sh vaqtinchalik papkada, loyiha sozlamalari va MCP serverlarsiz ishlaydi.
-`tools` bo'sh bo'lsa, model hech qanday vosita (fayl, terminal, internet) ishlata olmaydi —
-begona matn (izoh, sahifa) ichidagi "buyruq" hech narsa qila olmasligi uchun.
+Each call runs in an empty temporary directory, without project settings or MCP servers.
+When `tools` is empty the model cannot use any tool (files, terminal, internet), so that
+a "command" inside untrusted text (a comment, a page) cannot do anything.
 """
 import json
 import logging
@@ -38,6 +38,6 @@ def ask_json(system: str, prompt: str, schema: dict, *, model: str = "sonnet",
             return data["structured_output"]
         except (subprocess.TimeoutExpired, json.JSONDecodeError, LLMError) as e:
             last = e
-            log.warning("LLM urinish %d/%d muvaffaqiyatsiz: %s", attempt, retries, e)
+            log.warning("LLM attempt %d/%d failed: %s", attempt, retries, e)
             time.sleep(2 * attempt)
-    raise LLMError(f"LLM javob bermadi: {last}")
+    raise LLMError(f"LLM did not respond: {last}")
