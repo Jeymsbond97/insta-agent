@@ -71,6 +71,26 @@ def pixabay(query: str, kind: str, limit: int) -> list[Asset]:
     return out
 
 
+@provider("coverr", "video")
+def coverr(query: str, kind: str, limit: int) -> list[Asset]:
+    key = os.environ.get("COVERR_API_KEY", "").strip()
+    if not key:
+        return []
+    data = _get("https://api.coverr.co/videos", params={"query": query, "page_size": limit, "urls": "true"},
+                headers={"Authorization": f"Bearer {key}"})
+    out = []
+    for h in data.get("hits", []):
+        urls = h.get("urls") or {}
+        url = urls.get("mp4_download") or urls.get("mp4")
+        if not url:
+            continue
+        out.append(Asset("coverr", "video", str(h["id"]), url, f"https://coverr.co/videos/{h['id']}", "Coverr",
+                         "Coverr License", title=h.get("title", ""), tags=h.get("tags") or [],
+                         width=h.get("max_width", 0), height=h.get("max_height", 0),
+                         duration=float(h.get("duration") or 0)))
+    return out
+
+
 # --- qidiruv ---
 def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
     found = []
