@@ -103,6 +103,19 @@ def unsplash(query: str, kind: str, limit: int) -> list[Asset]:
             for h in data.get("results", [])]
 
 
+@provider("freesound", "audio")
+def freesound(query: str, kind: str, limit: int) -> list[Asset]:
+    key = os.environ.get("FREESOUND_API_KEY", "").strip()
+    if not key:
+        return []
+    data = _get("https://freesound.org/apiv2/search/text/",
+                params={"query": query, "token": key, "page_size": limit,
+                        "fields": "id,name,url,username,license,previews,duration,tags"})
+    return [Asset("freesound", "audio", str(h["id"]), h["previews"]["preview-hq-mp3"], h["url"], h["username"],
+                  h["license"], title=h["name"], tags=h.get("tags") or [], duration=h.get("duration", 0))
+            for h in data.get("results", [])]
+
+
 # --- qidiruv ---
 def search(query: str, kind: str, limit: int = 10) -> list[Asset]:
     found = []
