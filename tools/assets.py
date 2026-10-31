@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
 TIMEOUT = 20
-HEADERS = {"User-Agent": "asset-fetcher/0.1 (python-requests)"}
+HEADERS = {"User-Agent": "asset-fetcher/0.1 (https://github.com/Jeymsbond97/insta-agent)"}  # Wikimedia talabi
 PROVIDERS = {}
 
 
@@ -38,6 +38,7 @@ class Asset:
     width: int = 0
     height: int = 0
     duration: float = 0
+    ping_url: str = ""  # Unsplash qoidasi: yuklanganda shu manzilga xabar beriladi
 
 
 def provider(name: str, *kinds: str):
@@ -61,9 +62,12 @@ def pixabay(query: str, kind: str, limit: int) -> list[Asset]:
     if not key:
         return []
     base = "https://pixabay.com/api/videos/" if kind == "video" else "https://pixabay.com/api/"
-    data = _get(base, params={"key": key, "q": query[:100], "per_page": max(limit, 3), "safesearch": "true"})
+    params = {"key": key, "q": query[:100], "per_page": max(limit, 3), "safesearch": "true"}
+    if kind == "image":
+        params["image_type"] = "photo"
+    data = _get(base, params=params)
     out = []
-    for h in data.get("hits", []):
+    for h in data.get("hits", [])[:limit]:
         if kind == "video":
             v = h["videos"].get("large") or {}
             if not v.get("url"):
@@ -104,7 +108,8 @@ def unsplash(query: str, kind: str, limit: int) -> list[Asset]:
     data = _get("https://api.unsplash.com/search/photos", params={"query": query, "per_page": limit},
                 headers={"Authorization": f"Client-ID {key}"})
     return [Asset("unsplash", "image", h["id"], h["urls"]["regular"], h["links"]["html"], h["user"]["name"],
-                  "Unsplash License", title=h.get("alt_description") or "", width=h["width"], height=h["height"])
+                  "Unsplash License", title=h.get("alt_description") or "", width=h["width"], height=h["height"],
+                  ping_url=h["links"]["download_location"])
             for h in data.get("results", [])]
 
 
@@ -218,6 +223,9 @@ def download(a: Asset, out_dir: Path) -> Path:
                 for chunk in r.iter_content(1 << 16):
                     f.write(chunk)
         tmp.rename(path)
+        if a.ping_url:
+            key = os.environ.get("UNSPLASH_ACCESS_KEY", "").strip()
+            requests.get(a.ping_url, headers={**HEADERS, "Authorization": f"Client-ID {key}"}, timeout=TIMEOUT)
     add_credit(a, path, out_dir)
     return path
 
@@ -243,7 +251,10 @@ def main():
     for a in search(args.query, args.type, args.limit):
         print(f"{a.source:10} {a.width}x{a.height} {a.duration:5.0f}s  {a.license[:24]:24} {a.page_url}")
         if args.out:
-            print("  ->", download(a, args.out))
+            try:
+                print("  ->", download(a, args.out))
+            except requests.RequestException as e:
+                print(f"  -> yuklanmadi ({type(e).__name__})", file=sys.stderr)
 
 
 if __name__ == "__main__":
