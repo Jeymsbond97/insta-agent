@@ -96,6 +96,12 @@ class PipelineTest(unittest.TestCase):
             with self.assertRaises(p.GateError):
                 p.score("v", "research", "fact-checker", value, state_dir=self.dir)
 
+    def test_start_twice_and_unknown_slug_are_rejected(self):
+        with self.assertRaises(p.GateError):
+            p.start("v", self.dir)
+        with self.assertRaises(p.GateError):
+            p.status("other", self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()
