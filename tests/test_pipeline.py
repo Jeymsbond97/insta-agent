@@ -102,6 +102,13 @@ class PipelineTest(unittest.TestCase):
         with self.assertRaises(p.GateError):
             p.status("other", self.dir)
 
+    def test_new_round_keeps_history(self):
+        p.score("v", "research", "fact-checker", 7, state_dir=self.dir)
+        data = p.new_round("v", "research", self.dir)
+        record = data["stages"]["research"]
+        self.assertEqual(record["round"], 2)
+        self.assertEqual(record["history"][0]["scores"]["fact-checker"]["score"], 7)
+
 
 if __name__ == "__main__":
     unittest.main()
