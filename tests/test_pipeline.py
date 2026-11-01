@@ -79,6 +79,10 @@ class PipelineTest(unittest.TestCase):
         with self.assertRaises(p.GateError):
             p.score("v", "research", "script-reviewer", 10, state_dir=self.dir)
 
+    def test_round_rejects_unknown_stage(self):
+        with self.assertRaises(p.GateError):
+            p.new_round("v", "nope", self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()

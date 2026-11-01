@@ -41,6 +41,11 @@ class GateError(Exception):
     pass
 
 
+def require_stage(stage_name: str):
+    if stage_name not in BY_NAME:
+        raise GateError(f"Unknown stage: {stage_name}")
+
+
 def _path(slug: str, state_dir: Path) -> Path:
     return state_dir / f"{slug}.json"
 
@@ -105,6 +110,7 @@ def score(slug: str, stage_name: str, reviewer: str, value: int, issues: int = 0
 
 def new_round(slug: str, stage_name: str, state_dir: Path = STATE_DIR) -> dict:
     """The artifact changed, so all its scores are void."""
+    require_stage(stage_name)
     data = load(slug, state_dir)
     record = data["stages"][stage_name]
     if record["round"] >= MAX_ROUNDS:
