@@ -124,6 +124,7 @@ def new_round(slug: str, stage_name: str, state_dir: Path = STATE_DIR) -> dict:
 def audit(slug: str, stage_name: str, verdict: str, note: str = "", state_dir: Path = STATE_DIR) -> dict:
     if verdict not in ("confirmed", "rejected"):
         raise GateError("Verdict must be confirmed or rejected")
+    require_stage(stage_name)
     data = load(slug, state_dir)
     record = data["stages"][stage_name]
     if verdict == "confirmed" and not passed_reviews(BY_NAME[stage_name], record):
