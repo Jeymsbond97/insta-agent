@@ -87,6 +87,10 @@ class PipelineTest(unittest.TestCase):
         with self.assertRaises(p.GateError):
             p.audit("v", "nope", "rejected", state_dir=self.dir)
 
+    def test_approve_rejects_unknown_stage(self):
+        with self.assertRaises(p.GateError):
+            p.approve("v", "nope", state_dir=self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()

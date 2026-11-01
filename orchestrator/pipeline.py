@@ -136,6 +136,7 @@ def audit(slug: str, stage_name: str, verdict: str, note: str = "", state_dir: P
 
 
 def approve(slug: str, stage_name: str, state_dir: Path = STATE_DIR) -> dict:
+    require_stage(stage_name)
     data = load(slug, state_dir)
     stage, record = BY_NAME[stage_name], data["stages"][stage_name]
     if not stage.owner_approval:
