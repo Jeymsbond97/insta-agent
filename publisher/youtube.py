@@ -5,7 +5,7 @@ Usage:
   python -m publisher.youtube --login                               # once: authorize in the browser
   python -m publisher.youtube approved/<slug> --ai no               # check only
   python -m publisher.youtube approved/<slug> --ai no --publish     # really uploads
-Until the audit passes, YouTube forces API uploads to private anyway, so private is the default.
+Private is the default, so a video goes public only when the owner changes it.
 """
 import argparse
 import json
