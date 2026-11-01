@@ -92,8 +92,7 @@ def require_previous(data: dict, stage_name: str):
 
 def score(slug: str, stage_name: str, reviewer: str, value: int, issues: int = 0, artifact: str = "",
           state_dir: Path = STATE_DIR) -> dict:
-    if stage_name not in BY_NAME:
-        raise GateError(f"Unknown stage: {stage_name}")
+    require_stage(stage_name)
     if reviewer not in BY_NAME[stage_name].reviewers:
         raise GateError(f"{reviewer} is not a reviewer of {stage_name}")
     if not 0 <= value <= 10:
