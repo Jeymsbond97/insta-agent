@@ -91,6 +91,11 @@ class PipelineTest(unittest.TestCase):
         with self.assertRaises(p.GateError):
             p.approve("v", "nope", state_dir=self.dir)
 
+    def test_score_outside_range_is_rejected(self):
+        for value in (-1, 11):
+            with self.assertRaises(p.GateError):
+                p.score("v", "research", "fact-checker", value, state_dir=self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()
