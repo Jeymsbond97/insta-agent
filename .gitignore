@@ -56,3 +56,4 @@ tests/sample_comments.json
 # Owner media and reference library
 me/
 templates/
+.mcp.json
