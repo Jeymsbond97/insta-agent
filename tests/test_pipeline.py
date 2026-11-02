@@ -110,5 +110,21 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(record["history"][0]["scores"]["fact-checker"]["score"], 7)
 
 
+    def test_waived_stage_lets_the_next_one_score(self):
+        p.waive("v", "research", "owner wrote it", self.dir)
+        p.waive("v", "selection", "owner wrote it", self.dir)
+        p.score("v", "script", "script-reviewer", 6, state_dir=self.dir)
+        self.assertTrue(self.row("research")["waived"])
+
+    def test_owner_approved_stage_cannot_be_waived(self):
+        for name in ("script", "edit"):
+            with self.assertRaises(p.GateError):
+                p.waive("v", name, "no", self.dir)
+
+    def test_waiver_needs_a_reason(self):
+        with self.assertRaises(p.GateError):
+            p.waive("v", "research", "", self.dir)
+
+
 if __name__ == "__main__":
     unittest.main()

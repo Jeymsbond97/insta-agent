@@ -77,6 +77,8 @@ def passed_reviews(stage: Stage, record: dict) -> bool:
 
 
 def stage_passed(stage: Stage, record: dict) -> bool:
+    if record.get("waived"):
+        return True
     if not passed_reviews(stage, record) or record["audit"] != "confirmed":
         return False
     return record["owner"] or not stage.owner_approval
@@ -147,6 +149,19 @@ def approve(slug: str, stage_name: str, state_dir: Path = STATE_DIR) -> dict:
     return data
 
 
+def waive(slug: str, stage_name: str, note: str, state_dir: Path = STATE_DIR) -> dict:
+    """The owner said this stage does not apply. Stages the owner approves cannot be waived."""
+    require_stage(stage_name)
+    if BY_NAME[stage_name].owner_approval:
+        raise GateError(f"{stage_name} needs owner approval and cannot be waived")
+    if not note:
+        raise GateError("A waiver needs the owner's reason")
+    data = load(slug, state_dir)
+    data["stages"][stage_name].update(waived=True, waiver_note=note)
+    save(data, state_dir)
+    return data
+
+
 def status(slug: str, state_dir: Path = STATE_DIR) -> list[dict]:
     data = load(slug, state_dir)
     rows = []
@@ -156,7 +171,8 @@ def status(slug: str, state_dir: Path = STATE_DIR) -> list[dict]:
                      "missing": [r for r in stage.reviewers if r not in record["scores"]],
                      "low": {r: v["score"] for r, v in record["scores"].items()
                              if v["score"] < PASS_SCORE or v["issues"]},
-                     "audit": record["audit"], "owner": record["owner"] if stage.owner_approval else None})
+                     "audit": record["audit"], "owner": record["owner"] if stage.owner_approval else None,
+                     "waived": record.get("waived", False)})
     return rows
 
 
@@ -182,6 +198,10 @@ def main():
     o = sub.add_parser("approve")
     o.add_argument("slug")
     o.add_argument("stage")
+    w = sub.add_parser("waive")
+    w.add_argument("slug")
+    w.add_argument("stage")
+    w.add_argument("--note", default="")
     args = ap.parse_args()
     try:
         if args.cmd == "start":
@@ -194,6 +214,8 @@ def main():
             audit(args.slug, args.stage, args.verdict, args.note)
         elif args.cmd == "approve":
             approve(args.slug, args.stage)
+        elif args.cmd == "waive":
+            waive(args.slug, args.stage, args.note)
         for row in status(args.slug):
             print(json.dumps(row, ensure_ascii=False))
     except GateError as e:
