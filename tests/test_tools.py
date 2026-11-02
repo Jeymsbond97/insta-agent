@@ -35,6 +35,11 @@ class TextcheckTest(unittest.TestCase):
     def test_double_space_is_an_error(self):
         self.assertTrue(any("double space" in e for e in self.errors("katta  uy")))
 
+    def test_dash_is_only_a_note(self):
+        errors, notes = textcheck.check("bir \u2014 ikki")
+        self.assertEqual(errors, [])
+        self.assertTrue(any("dash" in n for n in notes))
+
 
 if __name__ == "__main__":
     unittest.main()
