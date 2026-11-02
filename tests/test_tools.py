@@ -102,5 +102,16 @@ class SfxTest(unittest.TestCase):
                 sfx.main()
 
 
+class SttTest(unittest.TestCase):
+
+    def test_existing_transcript_is_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "a.json").write_text("{}")
+            argv = ["stt.py", str(Path(d) / "a.wav"), "--out-dir", d]
+            with mock.patch.object(sys, "argv", argv), mock.patch.object(stt, "transcribe") as call:
+                stt.main()
+            call.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
