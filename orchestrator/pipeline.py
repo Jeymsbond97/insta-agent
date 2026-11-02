@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STATE_DIR = ROOT / "state" / "pipeline"
 PASS_SCORE = 9
-MAX_ROUNDS = 5
+MAX_ROUNDS = 2
 
 
 @dataclass(frozen=True)
@@ -23,16 +23,12 @@ class Stage:
     owner_approval: bool = False
 
 
+# Owner's rule 2026-11-02: makers get the reviewers' criteria and check their own work, so only three
+# stages are gated, each with few reviewers and at most two rounds.
 STAGES = (
     Stage("research", ("fact-checker",)),
-    Stage("selection", ("information-reviewer",)),
-    Stage("script", ("script-reviewer", "content-level-reviewer", "curriculum-reviewer",
-                     "uzbek-language-reviewer", "fact-checker", "content-creator-reviewer"), owner_approval=True),
-    Stage("style", ("design-reviewer",)),
-    Stage("storyboard", ("design-reviewer", "edit-reviewer", "content-creator-reviewer")),
-    Stage("assets", ("rights-reviewer", "design-reviewer")),
-    Stage("edit", ("design-reviewer", "edit-reviewer", "sound-reviewer", "content-creator-reviewer",
-                   "fact-checker", "uzbek-language-reviewer"), owner_approval=True),
+    Stage("script", ("script-reviewer", "uzbek-language-reviewer", "fact-checker"), owner_approval=True),
+    Stage("edit", ("design-reviewer", "edit-reviewer", "uzbek-language-reviewer"), owner_approval=True),
 )
 BY_NAME = {s.name: s for s in STAGES}
 

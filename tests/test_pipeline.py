@@ -48,14 +48,13 @@ class PipelineTest(unittest.TestCase):
 
     def test_owner_must_approve_script_before_video_work(self):
         self.pass_stage("research")
-        self.pass_stage("selection")
         for reviewer in p.BY_NAME["script"].reviewers:
             p.score("v", "script", reviewer, 10, state_dir=self.dir)
         p.audit("v", "script", "confirmed", state_dir=self.dir)
         with self.assertRaises(p.GateError):
-            p.score("v", "style", "design-reviewer", 10, state_dir=self.dir)
+            p.score("v", "edit", "design-reviewer", 10, state_dir=self.dir)
         p.approve("v", "script", state_dir=self.dir)
-        p.score("v", "style", "design-reviewer", 10, state_dir=self.dir)
+        p.score("v", "edit", "design-reviewer", 10, state_dir=self.dir)
 
     def test_owner_cannot_be_shown_unreviewed_work(self):
         with self.assertRaises(p.GateError):
@@ -109,10 +108,8 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(record["round"], 2)
         self.assertEqual(record["history"][0]["scores"]["fact-checker"]["score"], 7)
 
-
     def test_waived_stage_lets_the_next_one_score(self):
         p.waive("v", "research", "owner wrote it", self.dir)
-        p.waive("v", "selection", "owner wrote it", self.dir)
         p.score("v", "script", "script-reviewer", 6, state_dir=self.dir)
         self.assertTrue(self.row("research")["waived"])
 
