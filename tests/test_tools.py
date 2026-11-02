@@ -89,6 +89,9 @@ class TtsTest(unittest.TestCase):
         words = tts.words_from_alignment(self.alignment("[curious] salom"))
         self.assertEqual([w["w"] for w in words], ["salom"])
 
+    def test_speed_goes_into_voice_settings(self):
+        self.assertEqual(self.sent_body(speed=1.2)["voice_settings"], {"speed": 1.2})
+
 
 if __name__ == "__main__":
     unittest.main()
