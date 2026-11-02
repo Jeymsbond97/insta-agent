@@ -93,5 +93,14 @@ class TtsTest(unittest.TestCase):
         self.assertEqual(self.sent_body(speed=1.2)["voice_settings"], {"speed": 1.2})
 
 
+class SfxTest(unittest.TestCase):
+
+    def test_missing_key_stops(self):
+        with mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": ""}), \
+                mock.patch.object(sys, "argv", ["sfx.py", "click", "--out", "x.mp3"]):
+            with self.assertRaises(SystemExit):
+                sfx.main()
+
+
 if __name__ == "__main__":
     unittest.main()
