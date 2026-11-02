@@ -40,6 +40,9 @@ class TextcheckTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(any("dash" in n for n in notes))
 
+    def test_too_long_is_an_error(self):
+        self.assertTrue(any("too long" in e for e in self.errors("soz " * 200)))
+
 
 if __name__ == "__main__":
     unittest.main()
