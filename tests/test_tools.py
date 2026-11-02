@@ -59,6 +59,11 @@ class Hlg2SdrTest(unittest.TestCase):
         values = [float(self.convert(v)[0]) for v in np.linspace(0, 1, 21)]
         self.assertEqual(values, sorted(values))
 
+    def test_grey_stays_neutral(self):
+        r, g, b = self.convert(0.5)
+        self.assertAlmostEqual(float(r), float(g), places=3)
+        self.assertAlmostEqual(float(g), float(b), places=3)
+
 
 if __name__ == "__main__":
     unittest.main()
