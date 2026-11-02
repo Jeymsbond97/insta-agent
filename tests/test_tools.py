@@ -51,6 +51,10 @@ class Hlg2SdrTest(unittest.TestCase):
     def test_black_stays_black(self):
         self.assertTrue(np.allclose(self.convert(0.0), 0.0, atol=1e-3))
 
+    def test_peak_stays_in_range(self):
+        out = self.convert(1.0)
+        self.assertTrue(((out >= 0) & (out <= 1)).all())
+
 
 if __name__ == "__main__":
     unittest.main()
