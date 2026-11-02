@@ -55,6 +55,10 @@ class Hlg2SdrTest(unittest.TestCase):
         out = self.convert(1.0)
         self.assertTrue(((out >= 0) & (out <= 1)).all())
 
+    def test_brightness_order_is_kept(self):
+        values = [float(self.convert(v)[0]) for v in np.linspace(0, 1, 21)]
+        self.assertEqual(values, sorted(values))
+
 
 if __name__ == "__main__":
     unittest.main()
