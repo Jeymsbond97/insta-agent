@@ -67,7 +67,7 @@ def words_from_alignment(al: dict) -> list[dict]:
     return words
 
 
-def synthesize(text: str, model: str, stability: float | None = None) -> dict:
+def synthesize(text: str, model: str, stability: float | None = None, speed: float | None = None) -> dict:
     key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
     voice = os.environ.get("ELEVENLABS_VOICE_ID", "").strip()
     if not key or not voice:
@@ -76,8 +76,13 @@ def synthesize(text: str, model: str, stability: float | None = None) -> dict:
     if used_this_month() + len(text) > limit:
         sys.exit(f"Monthly limit: {used_this_month()} + {len(text)} > {limit} characters. See config/limits.yaml.")
     body = {"text": text, "model_id": model}
+    settings = {}
     if stability is not None:
-        body["voice_settings"] = {"stability": stability}
+        settings["stability"] = stability
+    if speed is not None:
+        settings["speed"] = speed
+    if settings:
+        body["voice_settings"] = settings
     for attempt in range(3):
         try:
             r = requests.post(f"{API}/{voice}/with-timestamps", params={"output_format": "mp3_44100_128"},
@@ -101,10 +106,11 @@ def main():
     ap.add_argument("--out", type=Path, required=True, help="Name without extension, e.g. output/x/voice")
     ap.add_argument("--model", default="eleven_v4")
     ap.add_argument("--stability", type=float, help="A lower value makes the tone livelier")
+    ap.add_argument("--speed", type=float, help="0.7 to 1.2; above 1 speaks faster")
     args = ap.parse_args()
 
     text = args.script.read_text(encoding="utf-8").strip()
-    data = synthesize(text, args.model, args.stability)
+    data = synthesize(text, args.model, args.stability, args.speed)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.with_suffix(".mp3").write_bytes(base64.b64decode(data["audio_base64"]))
     words = words_from_alignment(data.get("normalized_alignment") or data["alignment"])
