@@ -32,6 +32,9 @@ class TextcheckTest(unittest.TestCase):
     def test_correct_text_has_no_errors(self):
         self.assertEqual(self.errors("Kitob \u2014 bilim. Ma\u02bcno o\u02bbzbekcha."), [])
 
+    def test_double_space_is_an_error(self):
+        self.assertTrue(any("double space" in e for e in self.errors("katta  uy")))
+
 
 if __name__ == "__main__":
     unittest.main()
