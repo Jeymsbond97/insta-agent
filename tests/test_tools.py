@@ -65,5 +65,26 @@ class Hlg2SdrTest(unittest.TestCase):
         self.assertAlmostEqual(float(g), float(b), places=3)
 
 
+class TtsTest(unittest.TestCase):
+    def alignment(self, text):
+        n = len(text)
+        return {"characters": list(text), "character_start_times_seconds": [i * 0.1 for i in range(n)],
+                "character_end_times_seconds": [i * 0.1 + 0.1 for i in range(n)]}
+
+    def sent_body(self, **kw):
+        reply = mock.Mock(status_code=200, ok=True)
+        reply.json.return_value = {}
+        with mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k", "ELEVENLABS_VOICE_ID": "v"}), \
+                mock.patch.object(tts, "used_this_month", return_value=0), mock.patch.object(tts, "add_usage"), \
+                mock.patch.object(tts.requests, "post", return_value=reply) as post:
+            tts.synthesize("salom", "eleven_v4", **kw)
+        return post.call_args.kwargs["json"]
+
+    def test_characters_group_into_words(self):
+        words = tts.words_from_alignment(self.alignment("salom dunyo"))
+        self.assertEqual([w["w"] for w in words], ["salom", "dunyo"])
+        self.assertAlmostEqual(words[1]["s"], 0.6)
+
+
 if __name__ == "__main__":
     unittest.main()
