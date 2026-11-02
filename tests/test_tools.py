@@ -23,6 +23,9 @@ class TextcheckTest(unittest.TestCase):
     def test_plain_apostrophe_after_o_is_an_error(self):
         self.assertTrue(any("U+02BB" in e for e in self.errors("o'zbek")))
 
+    def test_glottal_mark_after_g_is_an_error(self):
+        self.assertTrue(any("U+02BB" in e for e in self.errors("tog\u02bc")))
+
 
 if __name__ == "__main__":
     unittest.main()
