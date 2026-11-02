@@ -29,6 +29,9 @@ class TextcheckTest(unittest.TestCase):
     def test_apostrophe_inside_a_word_wants_the_glottal_mark(self):
         self.assertTrue(any("U+02BC" in e for e in self.errors("ma'no")))
 
+    def test_correct_text_has_no_errors(self):
+        self.assertEqual(self.errors("Kitob \u2014 bilim. Ma\u02bcno o\u02bbzbekcha."), [])
+
 
 if __name__ == "__main__":
     unittest.main()
