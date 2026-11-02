@@ -85,6 +85,10 @@ class TtsTest(unittest.TestCase):
         self.assertEqual([w["w"] for w in words], ["salom", "dunyo"])
         self.assertAlmostEqual(words[1]["s"], 0.6)
 
+    def test_tone_tags_are_not_words(self):
+        words = tts.words_from_alignment(self.alignment("[curious] salom"))
+        self.assertEqual([w["w"] for w in words], ["salom"])
+
 
 if __name__ == "__main__":
     unittest.main()
