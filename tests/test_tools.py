@@ -44,5 +44,13 @@ class TextcheckTest(unittest.TestCase):
         self.assertTrue(any("too long" in e for e in self.errors("soz " * 200)))
 
 
+class Hlg2SdrTest(unittest.TestCase):
+    def convert(self, value):
+        return hlg2sdr.hlg_to_sdr(np.full((1, 1, 3), value, np.float32))[0, 0]
+
+    def test_black_stays_black(self):
+        self.assertTrue(np.allclose(self.convert(0.0), 0.0, atol=1e-3))
+
+
 if __name__ == "__main__":
     unittest.main()
