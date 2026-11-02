@@ -112,6 +112,15 @@ class SttTest(unittest.TestCase):
                 stt.main()
             call.assert_not_called()
 
+    def test_language_is_sent(self):
+        reply = mock.Mock(status_code=200, ok=True)
+        reply.json.return_value = {"text": "", "words": []}
+        with tempfile.NamedTemporaryFile(suffix=".wav") as f, \
+                mock.patch.dict(os.environ, {"ELEVENLABS_API_KEY": "k"}), \
+                mock.patch.object(stt.requests, "post", return_value=reply) as post:
+            stt.transcribe(Path(f.name), "uzb")
+        self.assertEqual(post.call_args.kwargs["data"]["language_code"], "uzb")
+
 
 if __name__ == "__main__":
     unittest.main()
