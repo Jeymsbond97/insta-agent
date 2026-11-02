@@ -26,6 +26,9 @@ class TextcheckTest(unittest.TestCase):
     def test_glottal_mark_after_g_is_an_error(self):
         self.assertTrue(any("U+02BB" in e for e in self.errors("tog\u02bc")))
 
+    def test_apostrophe_inside_a_word_wants_the_glottal_mark(self):
+        self.assertTrue(any("U+02BC" in e for e in self.errors("ma'no")))
+
 
 if __name__ == "__main__":
     unittest.main()
