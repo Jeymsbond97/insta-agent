@@ -27,6 +27,13 @@ class MediaTest(unittest.TestCase):
             medialog.add("v2", ["x.mp4", "x.mp4", "y.mp4"], path)
             self.assertEqual(json.loads(path.read_text())["v2"], ["x.mp4", "y.mp4"])
 
+    def test_captions_only_during_speech(self):
+        blank = Image.new("RGB", (captions.W, captions.H))
+        idle = captions.draw(blank.copy(), 5.0, WORDS, [[0, 1], [2]], {}, end_time=2.0)
+        live = captions.draw(blank.copy(), 0.3, WORDS, [[0, 1], [2]], {1: captions.TEAL}, end_time=2.0)
+        self.assertEqual(idle.getbbox(), None)
+        self.assertIsNotNone(live.getbbox())
+
 
 if __name__ == "__main__":
     unittest.main()
