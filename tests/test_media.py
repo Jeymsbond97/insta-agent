@@ -21,6 +21,12 @@ class MediaTest(unittest.TestCase):
         self.assertEqual(medialog.check(["clips/a.mp4", "clips/c.mp4", "clips/b.jpg"], ledger),
                          {"clips/a.mp4": "video one", "clips/b.jpg": "video one"})
 
+    def test_add_records_files_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "log.json"
+            medialog.add("v2", ["x.mp4", "x.mp4", "y.mp4"], path)
+            self.assertEqual(json.loads(path.read_text())["v2"], ["x.mp4", "y.mp4"])
+
 
 if __name__ == "__main__":
     unittest.main()
