@@ -286,7 +286,8 @@ def preview_file(video_dir: Path) -> Path:
 @owner_only
 async def cmd_review(update: Update, ctx):
     """Sends the latest finished video for approval."""
-    dirs = sorted([d for d in OUTPUT.iterdir() if (d / "final.mp4").exists()], reverse=True)
+    dirs = sorted([d for d in OUTPUT.iterdir() if (d / "final.mp4").exists()],
+                  key=lambda d: (d / "final.mp4").stat().st_mtime, reverse=True)  # newest file, not the last name
     if not dirs:
         await update.message.reply_text("No finished video yet.")
         return
