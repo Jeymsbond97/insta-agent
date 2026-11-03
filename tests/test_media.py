@@ -41,6 +41,11 @@ class MediaTest(unittest.TestCase):
         self.assertGreaterEqual(box[0], 0)
         self.assertLessEqual(box[2], captions.W)
 
+    def test_word_times_scale(self):
+        out = voicefit.scale_words(WORDS, 1.25)
+        self.assertAlmostEqual(out[-1]["e"], 1.12)
+        self.assertEqual([w["w"] for w in out], ["Bir", "ikki", "uch"])
+
 
 if __name__ == "__main__":
     unittest.main()
