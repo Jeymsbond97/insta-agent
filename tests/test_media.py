@@ -46,6 +46,11 @@ class MediaTest(unittest.TestCase):
         self.assertAlmostEqual(out[-1]["e"], 1.12)
         self.assertEqual([w["w"] for w in out], ["Bir", "ikki", "uch"])
 
+    def test_rushed_speed_refused(self):
+        self.assertAlmostEqual(voicefit.speed_for(60, 50), 1.2)
+        with self.assertRaises(ValueError):
+            voicefit.speed_for(77, 50)
+
 
 if __name__ == "__main__":
     unittest.main()
