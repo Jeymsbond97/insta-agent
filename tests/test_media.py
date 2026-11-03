@@ -34,6 +34,13 @@ class MediaTest(unittest.TestCase):
         self.assertEqual(idle.getbbox(), None)
         self.assertIsNotNone(live.getbbox())
 
+    def test_long_phrase_stays_inside(self):
+        long = [{"w": "juda-uzun-soz" * 3, "s": 0.0, "e": 1.0}, {"w": "yana" * 6, "s": 0.0, "e": 1.0}]
+        img = captions.draw(Image.new("RGB", (captions.W, captions.H)), 0.5, long, [[0, 1]], {0: captions.ORANGE})
+        box = img.getbbox()
+        self.assertGreaterEqual(box[0], 0)
+        self.assertLessEqual(box[2], captions.W)
+
 
 if __name__ == "__main__":
     unittest.main()
