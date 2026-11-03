@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-WPM = 132
+WPM = 170  # the owner's brisk delivery: TTS speed 1.2 plus atempo 1.12
 MAX_SECONDS = 59
 OKINA = "ʻ"  # oʻ gʻ
 GLOTTAL = "ʼ"  # maʼno
@@ -28,7 +28,7 @@ def check(text: str) -> tuple[list[str], list[str]]:
             errors.append(f"line {n}: space before punctuation")
         for m in re.finditer(r"[—–]", line):
             notes.append(f"line {n}: dash in '{line[max(0, m.start() - 15):m.end() + 15]}', keep only where grammar requires")
-    words = len(re.findall(r"\w+", text))
+    words = len(re.findall(r"\w+", re.sub(r"\[[^\]]*\]", "", text)))  # voice tags are not spoken
     seconds = words / WPM * 60
     notes.append(f"{words} words, about {seconds:.0f} s at {WPM} words per minute")
     if seconds > MAX_SECONDS:
